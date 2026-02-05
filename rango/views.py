@@ -1,6 +1,7 @@
-from django.shortcuts import render
+from django.shortcuts import render, redirect
 from django.http import HttpResponse
 from rango.models import Category, Page
+from rango.forms import CategoryForm
 
 # views go here
 def index(request):
@@ -17,7 +18,6 @@ def index(request):
 
 def show_category(request, category_name_slug):
     context_dict = {}
-
     try:
         category = Category.objects.get(slug=category_name_slug)
         pages = Page.objects.filter(category=category)
@@ -29,6 +29,17 @@ def show_category(request, category_name_slug):
         context_dict["pages"] = None
 
     return render(request, 'rango/category.html', context=context_dict) 
+
+def add_category(request):
+    form = CategoryForm()
+    if request.method == "POST":
+        form = CategoryForm(request.POST)
+        if form.is_valid():
+            form.save(commit=True)
+            return redirect("/rango/")
+        else:
+            print(form.errors)
+    return render(request, "rango/add_category.html", {"form": form})
 
 def about(request):
     context_dict = {
