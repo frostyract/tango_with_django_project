@@ -1,8 +1,9 @@
 from django.shortcuts import render, redirect
 from django.urls import reverse
 from django.http import HttpResponse
+from django.contrib.auth import authenticate, login
 from rango.models import Category, Page
-from rango.forms import CategoryForm, PageForm
+from rango.forms import CategoryForm, PageForm, UserForm, UserProfileForm
 
 # views go here
 def index(request):
@@ -66,6 +67,56 @@ def add_page(request, category_name_slug):
             print(form.errors)
     context_dict = {"form": form, "category":category}
     return render(request, "rango/add_page.html", context=context_dict)
+
+def register(request):
+    registered = False
+    # for a user who is sending in their form
+    if request.method == "POST":
+        user_form = UserForm(request.POST)
+        profile_form = UserProfileForm(request.POST)
+        if user_form.is_valid() and profile_form.is_valid():
+            # django user stuff first
+            user = user_form.save()
+            user.set_password(user.password) # this hashes the password
+            user.save()
+            # and now our specific user profile stuff
+            profile = profile_form.save(commit=False) # hold on, don't save to the db quite yet!
+            profile.user = user
+            if 'picture' in request.FILES:
+                profile.picture = request.FILES['picture']
+            profile.save() # now save the userprofile model instance
+            registered = True # the user is now registered!
+        else: # if the stuff in the POST is invalid
+            print(user_form.errors, profile_form.errors)
+    # for a regular access of the url (non-post)
+    else:
+        user_form = UserForm()
+        profile_form = UserProfileForm()
+    # now render the site, with the specified context
+    context_dict = {
+        "user_form": user_form,
+        "profile_form": profile_form,
+        "registered": registered,
+    }
+    return render(request, 'rango/register.html', context=context_dict)
+
+def user_login(request):
+    if request.method == "POST":
+        username = request.POST.get("username")
+        password = request.POST.get("password")
+        user = authenticate(username=username, password=password)
+        if user:
+            if user.is_active: # make sure the account isn't frozen
+                login(request, user) # log the user in if acc active
+                return redirect(reverse('rango:index')) # send user back to homepage
+            else:
+                return HttpResponse("Your Rango account is disabled.")
+        else:
+            print(f"Invalid login details: {username} {password}")
+            return HttpResponse("Invalid login details supplied.")
+    # request isn't POST, it's probably a GET, so display login form
+    else:
+        return render(request, 'rango/login.html')
 
 def about(request):
     context_dict = {
